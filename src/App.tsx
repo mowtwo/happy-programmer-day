@@ -1,80 +1,201 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect } from "react";
+import { useMemo } from "react";
+import { useState } from "react";
+import "./App.css";
+import ErrorMessageIcon from "./assets/msg_error-0.png";
 
-function useCycleIndex(maxIndex: number, minIndex = 0, initIndex = minIndex) {
-  const [index, setIndex] = useState(initIndex);
-
-  const next = () => {
-    setIndex((i) => {
-      if (i + 1 <= maxIndex) {
-        return i + 1;
-      } else {
-        return minIndex;
-      }
-    });
-  };
-
-  const back = () => {
-    setIndex((i) => {
-      if (i - 1 >= minIndex) {
-        return i - 1;
-      } else {
-        return maxIndex;
-      }
-    });
-  };
-
-  return [index, next, back] as const;
+interface ErrorWindowProps {
+  title?: string;
+  content?: string;
+  top?: number;
+  left?: number;
 }
 
-function useTypo(pointers: string[]) {
-  const [cycleIndex, next] = useCycleIndex(pointers.length - 1);
-  const [index, setIndex] = useState(0);
-  const pointer = useMemo(() => pointers[index] ?? "", [index]);
-  useEffect(() => {
-    let timer = setInterval(() => {
-      if (pointer === "") {
-        next();
-      } else {
-        setIndex(-1);
-      }
-    }, 1500);
-    const cleanup = () => {
-      clearInterval(timer);
-    };
-    return cleanup;
-  }, [pointer]);
-  useEffect(() => {
-    setIndex(cycleIndex);
-  }, [cycleIndex]);
-  return [pointer, index, cycleIndex] as const;
-}
-
-function App() {
-  const [pointer, index] = useTypo([".", "_", "|", "&", "*", "%", "$", "^"]);
+const ErrorWindow = ({
+  title = "System Message",
+  content = "Error",
+  top = 0,
+  left = 0,
+}: ErrorWindowProps) => {
   return (
-    <div className="fixed flex items-center justify-center  top-0 left-0 w-100% h-100% bg-black">
-      <div
-        className="fixed left-50% top-50% translate--50% text-size-8 whitespace-nowrap text-dark-100 transition-500"
-        style={{
-          opacity: index >= 0 ? 0 : 1,
-          zIndex: index >= 0 ? 1 : 2,
-        }}
-      >
-        Happy Every Day {"#^_^"}
+    <div
+      className="window"
+      style={{
+        left,
+        top,
+      }}
+    >
+      <div className="title-bar">
+        <div className="title-bar-text">{title}</div>
+        <div className="title-bar-controls">
+          <button aria-label="Close"></button>
+        </div>
       </div>
-      <div
-        className="relative text-size-22 text-light-50 font-bold transition-200"
-        style={{
-          opacity: index >= 0 ? 1 : 0.1,
-          zIndex: index >= 0 ? 2 : 1,
-        }}
-      >
-        10
-        <span className="font-normal">{pointer}</span>
-        24
+      <div className="window-body">
+        <p>
+          <img src={ErrorMessageIcon} alt="icon" /> {content}
+        </p>
+        <section className="field-row">
+          <button>OK</button>
+        </section>
       </div>
     </div>
   );
-}
+};
+
+const nextNumber = (
+  current: number,
+  min: number,
+  max: number,
+  step: number,
+  reverse = false
+): [n: number, reverse: boolean] => {
+  if (reverse) {
+    current -= step;
+    if (current < min) {
+      return nextNumber(current + step, min, max, step, false);
+    } else {
+      return [current, reverse];
+    }
+  } else {
+    current += step;
+    if (current > max) {
+      return nextNumber(current - step, min, max, step, true);
+    } else {
+      return [current, reverse];
+    }
+  }
+};
+
+const useNextNumber = (
+  init_number: number,
+  min: number,
+  max: number,
+  step: number,
+  init_reverse = false
+) => {
+  const [cache, setCache] = useState([init_number, init_reverse] as const);
+  const number = useMemo(() => cache[0], [cache]);
+  const reverse = useMemo(() => cache[1], [cache]);
+
+  const next = () => {
+    setCache((c) => {
+      return nextNumber(c[0], min, max, step, c[1]);
+    });
+  };
+
+  return [number, next, reverse] as const;
+};
+
+const useNextPosition = (init_left: number, init_top: number, step: number) => {
+  const [top, nextTop] = useNextNumber(
+    init_top,
+    0,
+    window.innerHeight,
+    step,
+    false
+  );
+  const [left, nextLeft] = useNextNumber(
+    init_left,
+    0,
+    window.innerWidth,
+    step,
+    false
+  );
+  const position = useMemo(
+    () => ({
+      top,
+      left,
+    }),
+    [top, left]
+  );
+
+  const nextPosition = () => {
+    nextTop();
+    nextLeft();
+  };
+
+  return [position, nextPosition] as const;
+};
+
+const useErrorPush = (init_start = false) => {
+  const [array, setArray] = useState<
+    { top: number; left: number; id: number }[]
+  >([]);
+  const [position, nextPosition] = useNextPosition(0, 0, 10);
+  const [starting, setStarting] = useState(init_start);
+
+  useEffect(() => {
+    if (starting) {
+      const timer = setInterval(() => {
+        nextPosition();
+      }, 100);
+      const cleanup = () => clearInterval(timer);
+      return cleanup;
+    }
+  }, [starting]);
+
+  useEffect(() => {
+    setArray((old) => {
+      return [
+        ...old,
+        {
+          left: position.left,
+          top: position.top,
+          id: Date.now(),
+        },
+      ];
+    });
+  }, [position]);
+
+  const start = () => {
+    setStarting(true);
+  };
+
+  const pause = () => {
+    setStarting(false);
+  };
+
+  const stop = () => {
+    pause();
+    setArray([]);
+  };
+
+  return [
+    array,
+    {
+      start,
+      pause,
+      stop,
+      starting,
+    },
+  ] as const;
+};
+
+const App = () => {
+  const [array, { start, starting }] = useErrorPush();
+  return (
+    <div className="app">
+      <div className="flex-center">
+        <button
+          onClick={() => {
+            start();
+          }}
+        >
+          1024 一起摇摆
+        </button>
+      </div>
+      {starting ? (
+        <div className="fixed">
+          {array.map((item) => {
+            return (
+              <ErrorWindow key={item.id} top={item.top} left={item.left} />
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 export default App;
