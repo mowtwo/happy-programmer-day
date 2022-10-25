@@ -91,14 +91,14 @@ const useNextPosition = (init_left: number, init_top: number, step: number) => {
   const [top, nextTop] = useNextNumber(
     init_top,
     0,
-    window.innerHeight,
+    window.innerHeight - 130 - step - 10,
     step,
     false
   );
   const [left, nextLeft] = useNextNumber(
     init_left,
     0,
-    window.innerWidth,
+    window.innerWidth - 160 - step - 10,
     step,
     false
   );
@@ -173,7 +173,14 @@ const useErrorPush = (init_start = false) => {
 };
 
 const App = () => {
-  const [array, { start, starting }] = useErrorPush();
+  const [array, { start, starting, pause }] = useErrorPush();
+  const max = 1024;
+  useEffect(() => {
+    console.log(array.length);
+    if (array.length >= max) {
+      pause();
+    }
+  }, [array]);
   return (
     <div className="app">
       <div className="flex-center">
@@ -185,7 +192,7 @@ const App = () => {
           1024 一起摇摆
         </button>
       </div>
-      {starting ? (
+      {starting || array.length >= max ? (
         <div className="fixed">
           {array.map((item) => {
             return (

@@ -28,8 +28,9 @@
 
 .app .fixed .window {
   position: absolute;
-  min-width: 16em;
-  transform: translate(1em, 1em);
+  width: 160px;
+  height: 130px;
+  transform: translate(10px, 10px);
 }
 
 .app .fixed .window p {
